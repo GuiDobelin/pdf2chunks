@@ -1,0 +1,99 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [5 0 R 7 0 R] /Count 2 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>
+endobj
+4 0 obj
+<< /Length 655 >>
+stream
+BT
+/F1 11 Tf
+14 TL
+72 760 Td
+(Acme Engineering Handbook) Tj
+T*
+T*
+(1. On-call basics) Tj
+T*
+(Every service has a primary and a secondary on-call engineer. The primary) Tj
+T*
+(acknowledges a page within five minutes and opens an incident channel; the) Tj
+T*
+(secondary takes over if there is no acknowledgement after fifteen minutes.) Tj
+T*
+(Handover happens every Monday at 10:00 and is recorded in the rota.) Tj
+T*
+(2. Severity levels) Tj
+T*
+(SEV1 means customers cannot use the product. SEV2 means a degraded experi-) Tj
+T*
+(ence for many customers. SEV3 covers everything that can wait for the next) Tj
+T*
+(working day.) Tj
+T*
+T*
+(Page 1 of 2) Tj
+T*
+ET
+endstream
+endobj
+5 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 4 0 R >>
+endobj
+6 0 obj
+<< /Length 533 >>
+stream
+BT
+/F1 11 Tf
+14 TL
+72 760 Td
+(Acme Engineering Handbook) Tj
+T*
+T*
+(3. Postmortems) Tj
+T*
+(A postmortem is written for every SEV1 and SEV2 incident within five work-) Tj
+T*
+(ing days. It is blameless: it describes what the system allowed to happen,) Tj
+T*
+(not who made a mistake. Action items get an owner and a due date.) Tj
+T*
+(4. Deploy freezes) Tj
+T*
+(There are no deploys on Fridays after 15:00 or during the last two weeks of) Tj
+T*
+(December, except for fixes to an open SEV1 or SEV2 incident.) Tj
+T*
+T*
+(Page 2 of 2) Tj
+T*
+ET
+endstream
+endobj
+7 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 6 0 R >>
+endobj
+8 0 obj
+<< /Title (Engineering Handbook) /Author (Acme Platform Team) >>
+endobj
+xref
+0 9
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000121 00000 n 
+0000000218 00000 n 
+0000000924 00000 n 
+0000001050 00000 n 
+0000001634 00000 n 
+0000001760 00000 n 
+trailer
+<< /Size 9 /Root 1 0 R /Info 8 0 R >>
+startxref
+1840
+%%EOF
