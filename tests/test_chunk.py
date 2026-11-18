@@ -1,0 +1,95 @@
+import pytest
+
+from pdf2chunks import Page, chunk_pages
+
+
+def sentences(n: int, page: int = 1) -> str:
+    return " ".join(f"Sentence {i} on page {page} is here." for i in range(n))
+
+
+def test_short_document_is_one_chunk():
+    chunks = chunk_pages([Page(1, "Hello world.")], source="a.pdf", metadata={"title": "T"})
+    assert len(chunks) == 1
+    chunk = chunks[0]
+    assert (chunk.text, chunk.page_start, chunk.page_end, chunk.index) == ("Hello world.", 1, 1, 0)
+    assert chunk.to_dict() == {
+        "id": chunk.id,
+        "source": "a.pdf",
+        "index": 0,
+        "page_start": 1,
+        "page_end": 1,
+        "chars": 12,
+        "text": "Hello world.",
+        "metadata": {"title": "T"},
+    }
+
+
+def test_chunks_respect_max_chars_and_split_at_sentences():
+    chunks = chunk_pages([Page(1, sentences(40))], max_chars=200, overlap=0)
+    assert len(chunks) > 1
+    assert all(len(c.text) <= 200 for c in chunks)
+    assert all(c.text.endswith("here.") for c in chunks)
+    assert " ".join(c.text for c in chunks) == sentences(40)
+
+
+def test_overlap_repeats_whole_trailing_sentences():
+    chunks = chunk_pages([Page(1, sentences(20))], max_chars=200, overlap=80)
+    for prev, nxt in zip(chunks, chunks[1:], strict=False):
+        shared = next(k for k in range(80, 0, -1) if prev.text.endswith(nxt.text[:k]))
+        assert 29 <= shared <= 80  # at least one whole sentence, never more than the overlap
+        assert nxt.text[shared - 1] == "."
+        assert len(nxt.text) <= 200
+
+
+def test_paragraphs_are_kept_together_and_separated_by_blank_lines():
+    text = "First paragraph.\n\nSecond paragraph."
+    assert chunk_pages([Page(1, text)])[0].text == text
+
+
+def test_chunks_track_page_ranges_across_pages():
+    pages = [Page(1, sentences(3, 1)), Page(2, sentences(3, 2)), Page(5, sentences(3, 5))]
+    chunks = chunk_pages(pages, max_chars=250, overlap=0)
+    assert [(c.page_start, c.page_end) for c in chunks] == [(1, 2), (5, 5)]
+    single = chunk_pages(pages, max_chars=5000)
+    assert (single[0].page_start, single[0].page_end) == (1, 5)
+
+
+def test_overlap_from_previous_page_counts_in_page_start():
+    pages = [Page(1, sentences(4, 1)), Page(2, sentences(4, 2))]
+    chunks = chunk_pages(pages, max_chars=200, overlap=60)
+    page_two = [c for c in chunks if "page 2" in c.text]
+    assert any(c.page_start == 1 for c in page_two)
+
+
+def test_long_words_are_hard_split():
+    url = "https://example.com/" + "x" * 250
+    chunks = chunk_pages([Page(1, f"See {url} now.")], max_chars=100, overlap=0)
+    assert all(len(c.text) <= 100 for c in chunks)
+    assert "".join(c.text.replace(" ", "") for c in chunks) == f"See{url}now."
+
+
+def test_empty_pages_give_no_chunks():
+    assert chunk_pages([Page(1, ""), Page(2, "  \n\n ")]) == []
+
+
+def test_ids_are_stable_and_unique():
+    pages = [Page(1, "Same text.\n\n" * 5)]
+    first = chunk_pages(pages, max_chars=12, overlap=0, source="a.pdf")
+    second = chunk_pages(pages, max_chars=12, overlap=0, source="a.pdf")
+    other = chunk_pages(pages, max_chars=12, overlap=0, source="b.pdf")
+    assert [c.id for c in first] == [c.id for c in second]
+    assert len({c.id for c in first}) == len(first) == 5
+    assert {c.id for c in first}.isdisjoint(c.id for c in other)
+
+
+@pytest.mark.parametrize(("max_chars", "overlap"), [(0, 0), (100, 100), (100, -1)])
+def test_invalid_sizes_are_rejected(max_chars, overlap):
+    with pytest.raises(ValueError):
+        chunk_pages([Page(1, "x")], max_chars=max_chars, overlap=overlap)
+
+
+def test_metadata_is_copied():
+    meta = {"title": "T"}
+    chunk = chunk_pages([Page(1, "x")], metadata=meta)[0]
+    meta["title"] = "changed"
+    assert chunk.metadata == {"title": "T"}
