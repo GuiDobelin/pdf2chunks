@@ -73,7 +73,7 @@ def _edge_key(line: str) -> str:
 
 
 def strip_headers_footers(
-    texts: Sequence[str], *, edge_lines: int = 2, min_ratio: float = 0.5, min_pages: int = 3
+    texts: Sequence[str], *, edge_lines: int = 2, min_ratio: float = 0.5, min_pages: int = 2
 ) -> list[str]:
     """Remove running headers, footers and page numbers from a document's pages.
 
@@ -98,19 +98,27 @@ def strip_headers_footers(
         {key for key, n in counts.items() if n >= threshold} if len(pages) >= min_pages else set()
     )
 
-    def removable(line: str) -> bool:
-        stripped = line.strip()
-        is_number = bool(_PAGE_NUMBER.match(stripped)) and not _YEAR.match(stripped)
-        return is_number or _edge_key(line) in repeated
-
-    out = []
-    for lines, (top, bottom) in zip(pages, edges, strict=True):
+    def edge_drops(lines: list[str], top: list[int], bottom: list[int], keys: set[str]) -> set[int]:
         drop = set()
         for side in (top, bottom):
             for i in side:  # stop at the first line that is real content
-                if not removable(lines[i]):
+                line = lines[i].strip()
+                if _PAGE_NUMBER.match(line):  # judged as a number only, never by repetition
+                    if _YEAR.match(line):
+                        break
+                elif _edge_key(line) not in keys:
                     break
                 drop.add(i)
+        return drop
+
+    out = []
+    for lines, (top, bottom) in zip(pages, edges, strict=True):
+        drop = edge_drops(lines, top, bottom, repeated)
+        filled = sum(1 for line in lines if line.strip())
+        if repeated and len(drop) == filled:
+            # A page made only of "repeated" lines is a short page of real content (e.g. one
+            # line per page), not a header and a footer: only drop its page numbers.
+            drop = edge_drops(lines, top, bottom, set())
         out.append("\n".join(line for i, line in enumerate(lines) if i not in drop))
     return out
 

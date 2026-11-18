@@ -44,8 +44,10 @@ def test_strip_headers_footers_stops_at_first_real_line():
 
 
 def test_strip_headers_footers_short_documents_only_lose_page_numbers():
+    assert strip_headers_footers(["Report\nBody one.\n1"]) == ["Report\nBody one."]
     pages = ["Report\nBody one.\n1", "Report\nBody two.\n2"]
-    assert strip_headers_footers(pages) == ["Report\nBody one.", "Report\nBody two."]
+    assert strip_headers_footers(pages) == ["Body one.", "Body two."]
+    assert strip_headers_footers(pages, min_pages=3) == ["Report\nBody one.", "Report\nBody two."]
 
 
 def test_strip_headers_footers_ignores_blank_lines_at_the_edges():
@@ -112,3 +114,8 @@ def test_page_break_join_needs_consecutive_pages_and_lowercase():
 def test_bare_years_at_page_edges_are_kept():
     pages = ["Annual Report\n2025", "Body text\n2"]
     assert strip_headers_footers(pages) == ["Annual Report\n2025", "Body text"]
+
+
+def test_pages_made_only_of_similar_lines_are_not_emptied():
+    pages = [f"Step {n}: add the flour.\n{n}" for n in range(1, 5)]
+    assert strip_headers_footers(pages) == [f"Step {n}: add the flour." for n in range(1, 5)]
