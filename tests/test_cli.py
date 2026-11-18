@@ -98,6 +98,10 @@ def test_pages_option(tmp_path, capsys):
     assert [r["page_start"] for r in records(capsys.readouterr().out)] == [2, 3, 5]
     assert main([str(path), "--pages", "9"]) == 1
     assert "page 9 does not exist" in capsys.readouterr().err
+    assert main([str(path), "--pages", "4-9", "--max-chars", "100", "--overlap", "0"]) == 0
+    captured = capsys.readouterr()
+    assert [r["page_start"] for r in records(captured.out)] == [4, 5]
+    assert "only 2 of the selected pages exist (the PDF has 5)" in captured.err
 
 
 @pytest.mark.parametrize(
@@ -153,7 +157,7 @@ def test_stats_and_scanned_warning(tmp_path, capsys):
     assert main([str(blank), str(pdf(tmp_path / "g.pdf")), "--stats"]) == 0
     err = capsys.readouterr().err
     assert "scan.pdf: no extractable text" in err
-    assert "g.pdf: 2/2 pages, 1 chunks, " in err
+    assert "g.pdf: 2 pages of 2, 1 chunk, " in err
 
 
 def test_password_from_environment(tmp_path, monkeypatch, capsys):
@@ -182,3 +186,28 @@ def test_non_ascii_is_written_as_utf8(tmp_path):
     out = tmp_path / "o.jsonl"
     main([str(path), "-o", str(out)])
     assert "Informação útil" in out.read_text(encoding="utf-8")
+
+
+def test_stdout_is_utf8_whatever_the_locale(tmp_path, monkeypatch):
+    path = tmp_path / "pt.pdf"
+    path.write_bytes(make_pdf([["Informação útil."]]))
+    raw = io.BytesIO()
+    monkeypatch.setattr(sys, "stdout", io.TextIOWrapper(raw, encoding="ascii"))
+    assert main([str(path)]) == 0
+    assert "Informação útil." in raw.getvalue().decode("utf-8")
+    sys.stdout.write("still usable")  # the wrapper was detached, not closed
+
+
+def test_missing_stdin_is_an_error(monkeypatch, capsys):
+    monkeypatch.setattr(sys, "stdin", None)
+    assert main(["-"]) == 1
+    assert "standard input is not available" in capsys.readouterr().err
+
+
+def test_output_keeps_the_permissions_of_an_existing_file(tmp_path):
+    out = tmp_path / "chunks.jsonl"
+    out.write_text("")
+    out.chmod(0o600)
+    assert main([str(pdf(tmp_path / "a.pdf")), "-o", str(out)]) == 0
+    assert (out.stat().st_mode & 0o777) == 0o600
+    assert out.read_text()

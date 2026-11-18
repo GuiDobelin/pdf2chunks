@@ -114,3 +114,13 @@ def test_chunks_do_not_end_on_a_heading():
     chunks = chunk_pages([Page(1, text)], max_chars=200, overlap=60)
     assert not any(c.text.endswith("Next section") for c in chunks)
     assert any(c.text.startswith("2. Next section\n\nSentence 0") for c in chunks)
+
+
+def test_a_heading_that_cannot_move_stays_and_no_text_is_lost():
+    text = "Aa.\n\nBb.\n\nShort title\n\n" + "x" * 45
+    chunks = chunk_pages([Page(1, text)], max_chars=50, overlap=0)
+    joined = " ".join(c.text for c in chunks)
+    assert "Short title" in joined and "x" * 45 in joined
+    many = "\n\n".join(f"Heading {i}" for i in range(30))
+    out = chunk_pages([Page(1, many)], max_chars=40, overlap=10)
+    assert all(f"Heading {i}" in " ".join(c.text for c in out) for i in range(30))
