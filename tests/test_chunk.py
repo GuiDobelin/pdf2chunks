@@ -107,3 +107,10 @@ def test_large_chunks_with_many_sentences():
     assert len(chunks) == 3
     assert all(len(c.text) <= 50_000 for c in chunks)
     assert chunks[-1].text.endswith("S19999.")
+
+
+def test_chunks_do_not_end_on_a_heading():
+    text = sentences(5) + "\n\n2. Next section\n\n" + sentences(5)
+    chunks = chunk_pages([Page(1, text)], max_chars=200, overlap=60)
+    assert not any(c.text.endswith("Next section") for c in chunks)
+    assert any(c.text.startswith("2. Next section\n\nSentence 0") for c in chunks)

@@ -13,6 +13,7 @@ DEFAULT_OVERLAP = 150
 
 _PARAGRAPH_BREAK = re.compile(r"\n\s*\n")
 _WHITESPACE = re.compile(r"\s+")
+_HEADING_END = re.compile(r"[.!?,;:…。！？]$")
 _SENTENCE_BREAK = re.compile(r"(?<=[.!?…。！？])[\"'”’)\]]*\s+")
 
 
@@ -74,6 +75,10 @@ def _units(pages: Iterable[Page], max_chars: int) -> list[_Unit]:
     return units
 
 
+def _is_heading(unit: _Unit) -> bool:
+    return unit.sep == "\n\n" and len(unit.text) <= 100 and not _HEADING_END.search(unit.text)
+
+
 def _length(units: list[_Unit]) -> int:
     return sum(len(u.text) for u in units) + sum(len(u.sep) for u in units[1:])
 
@@ -103,8 +108,13 @@ def chunk_pages(
     size = 0  # == _length(current), kept up to date instead of recomputed per unit
     for unit in _units(pages, max_chars):
         if current and size + len(unit.sep) + len(unit.text) > max_chars:
-            groups.append(current)
-            current = _tail(current, overlap)
+            if len(current) > 1 and _is_heading(current[-1]):
+                # never end a chunk on a heading: move it to the chunk with its section
+                groups.append(current[:-1])
+                current = current[-1:]
+            else:
+                groups.append(current)
+                current = _tail(current, overlap)
             size = _length(current)
             while current and size + len(unit.sep) + len(unit.text) > max_chars:
                 dropped = current.pop(0)
