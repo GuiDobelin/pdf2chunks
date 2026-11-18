@@ -40,6 +40,10 @@ _HYPHEN_BREAK = re.compile(r"([^\W\d_])-\n([^\W\d_])")
 _PAGE_NUMBER = re.compile(
     r"^(?:page\s+|p\.\s*)?[-–—]?\s*\d{1,4}\s*[-–—]?(?:\s*(?:of|/)\s*\d{1,4})?$", re.IGNORECASE
 )
+_YEAR = re.compile(r"^(?:19|20)\d\d$")  # a bare year on a cover page is content, not a page number
+_TRAILING_HYPHEN = re.compile(r"([^\W\d_])-$")
+_LEADING_FRAGMENT = re.compile(r"^([^\W\d_]\w*)([.,;:!?)\]]*)(?:[ \n]|$)")
+_CJK = re.compile(r"[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff66-\uff9f]")
 _SENTENCE_END = re.compile(r"[.!?:;…][\"'”’)\]]*$")
 _LIST_ITEM = re.compile(r"^(?:[•▪◦‣∙·*–—-]\s|\(?\d{1,3}[.)]\s|\(?[a-z][.)]\s)")
 
@@ -95,7 +99,9 @@ def strip_headers_footers(
     )
 
     def removable(line: str) -> bool:
-        return bool(_PAGE_NUMBER.match(line.strip())) or _edge_key(line) in repeated
+        stripped = line.strip()
+        is_number = bool(_PAGE_NUMBER.match(stripped)) and not _YEAR.match(stripped)
+        return is_number or _edge_key(line) in repeated
 
     out = []
     for lines, (top, bottom) in zip(pages, edges, strict=True):
@@ -126,7 +132,10 @@ def to_paragraphs(text: str) -> list[str]:
 
     def flush() -> None:
         if current:
-            paragraphs.append(" ".join(current))
+            joined = current[0]
+            for line in current[1:]:
+                joined += _line_joiner(joined, line) + line
+            paragraphs.append(joined)
             current.clear()
 
     for i, line in enumerate(lines):
@@ -148,6 +157,28 @@ def to_paragraphs(text: str) -> list[str]:
     return paragraphs
 
 
+def _line_joiner(before: str, after: str) -> str:
+    """No space after a kept hyphen (``COVID-`` + ``19``) or between CJK characters."""
+    if re.search(r"\w-$", before):
+        return ""
+    if _CJK.match(before[-1]) and _CJK.match(after[0]):
+        return ""
+    return " "
+
+
+def join_page_breaks(texts: Sequence[str]) -> list[str]:
+    """Move the second half of a word hyphenated across a page break onto the earlier page."""
+    out = list(texts)
+    for i in range(len(out) - 1):
+        end = _TRAILING_HYPHEN.search(out[i].rstrip())
+        match = _LEADING_FRAGMENT.match(out[i + 1].lstrip())
+        if not end or not match or not match.group(1)[0].islower():
+            continue
+        out[i] = out[i].rstrip()[:-1] + match.group(1) + match.group(2)
+        out[i + 1] = out[i + 1].lstrip()[match.end() :]
+    return out
+
+
 def _starts_block(line: str) -> bool:
     return bool(line) and (line[0].isupper() or line[0].isdigit() or bool(_LIST_ITEM.match(line)))
 
@@ -155,13 +186,27 @@ def _starts_block(line: str) -> bool:
 def clean_pages(
     pages: Iterable[Page], *, strip_headers: bool = True, join_hyphens: bool = True
 ) -> list[Page]:
-    """Clean every page; each returned page holds paragraphs separated by blank lines."""
+    """Clean every page; each returned page holds paragraphs separated by blank lines.
+
+    Header and footer detection only sees the pages passed in, so clean a whole document
+    (or a large part of it) rather than one or two pages at a time.
+    """
     pages = list(pages)
     texts = [normalize_text(page.text) for page in pages]
     if strip_headers:
         texts = strip_headers_footers(texts)
     if join_hyphens:
         texts = [dehyphenate(text) for text in texts]
+        # only pages that really follow each other can share a broken word
+        runs: list[list[int]] = []
+        for i, page in enumerate(pages):
+            if runs and pages[runs[-1][-1]].number + 1 == page.number:
+                runs[-1].append(i)
+            else:
+                runs.append([i])
+        for run in runs:
+            for i, text in zip(run, join_page_breaks([texts[i] for i in run]), strict=True):
+                texts[i] = text
     return [
         Page(number=page.number, text="\n\n".join(to_paragraphs(text)))
         for page, text in zip(pages, texts, strict=True)

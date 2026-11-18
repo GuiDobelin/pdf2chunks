@@ -100,12 +100,16 @@ def chunk_pages(
 
     groups: list[list[_Unit]] = []
     current: list[_Unit] = []
+    size = 0  # == _length(current), kept up to date instead of recomputed per unit
     for unit in _units(pages, max_chars):
-        if current and _length([*current, unit]) > max_chars:
+        if current and size + len(unit.sep) + len(unit.text) > max_chars:
             groups.append(current)
             current = _tail(current, overlap)
-            while current and _length([*current, unit]) > max_chars:
-                current.pop(0)
+            size = _length(current)
+            while current and size + len(unit.sep) + len(unit.text) > max_chars:
+                dropped = current.pop(0)
+                size -= len(dropped.text) + (len(current[0].sep) if current else 0)
+        size += len(unit.text) + (len(unit.sep) if current else 0)
         current.append(unit)
     if current:
         groups.append(current)
@@ -123,7 +127,7 @@ def chunk_pages(
                 source=source,
                 page_start=min(u.page for u in group),
                 page_end=max(u.page for u in group),
-                metadata=base,
+                metadata=dict(base),  # one dict per chunk: editing one never leaks
             )
         )
     return chunks
