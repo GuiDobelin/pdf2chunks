@@ -1,0 +1,42 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "pdf2chunks"
+version = "0.1.0"
+description = "Turn PDFs into JSONL chunks with page numbers and metadata, ready for RAG ingestion"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.11"
+authors = [{ name = "GuiDobelin" }]
+keywords = []
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+]
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "ruff>=0.6"]
+
+[project.scripts]
+pdf2chunks = "pdf2chunks.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/GuiDobelin/pdf2chunks"
+Issues = "https://github.com/GuiDobelin/pdf2chunks/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/pdf2chunks"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
