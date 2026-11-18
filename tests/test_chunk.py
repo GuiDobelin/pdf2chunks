@@ -93,3 +93,17 @@ def test_metadata_is_copied():
     chunk = chunk_pages([Page(1, "x")], metadata=meta)[0]
     meta["title"] = "changed"
     assert chunk.metadata == {"title": "T"}
+
+
+def test_each_chunk_has_its_own_metadata_dict():
+    chunks = chunk_pages([Page(1, "One. " * 50)], max_chars=20, overlap=0, metadata={"a": 1})
+    chunks[0].metadata["a"] = 2
+    assert chunks[1].metadata == {"a": 1}
+
+
+def test_large_chunks_with_many_sentences():
+    text = " ".join(f"S{i}." for i in range(20_000))
+    chunks = chunk_pages([Page(1, text)], max_chars=50_000, overlap=100)
+    assert len(chunks) == 3
+    assert all(len(c.text) <= 50_000 for c in chunks)
+    assert chunks[-1].text.endswith("S19999.")

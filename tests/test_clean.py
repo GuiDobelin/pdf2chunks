@@ -84,4 +84,31 @@ def test_clean_pages_keeps_page_numbers_and_returns_paragraphs():
 def test_clean_pages_options_can_be_turned_off():
     pages = [Page(1, "exam-\nple\n7")]
     out = clean_pages(pages, strip_headers=False, join_hyphens=False)
-    assert out[0].text == "exam- ple 7"
+    assert out[0].text == "exam-ple 7"  # a kept hyphen is not followed by a space
+
+
+def test_kept_hyphens_are_not_followed_by_a_space():
+    text = "the COVID-\n19 numbers and Jean-\nPaul came"
+    assert clean_pages([Page(1, text)])[0].text == "the COVID-19 numbers and Jean-Paul came"
+
+
+def test_cjk_lines_are_joined_without_spaces():
+    assert to_paragraphs("検索\n拡張生成\nand more") == ["検索拡張生成 and more"]
+
+
+def test_words_hyphenated_across_a_page_break_are_joined():
+    pages = [Page(3, "the retrie-\n4"), Page(4, "val, of documents"), Page(6, "x")]
+    out = clean_pages(pages)
+    assert out[0].text == "the retrieval,"
+    assert out[1].text == "of documents"
+
+
+def test_page_break_join_needs_consecutive_pages_and_lowercase():
+    pages = [Page(1, "one Jean-"), Page(2, "Paul"), Page(3, "co-"), Page(5, "operation")]
+    out = clean_pages(pages)
+    assert [p.text for p in out] == ["one Jean-", "Paul", "co-", "operation"]
+
+
+def test_bare_years_at_page_edges_are_kept():
+    pages = ["Annual Report\n2025", "Body text\n2"]
+    assert strip_headers_footers(pages) == ["Annual Report\n2025", "Body text"]
