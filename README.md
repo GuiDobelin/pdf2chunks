@@ -110,10 +110,12 @@ curl -s https://example.com/paper.pdf | pdf2chunks - --raw
 
 ```text
 $ pdf2chunks examples/handbook.pdf --max-chars 400 --overlap 80 --stats > /dev/null
-examples/handbook.pdf: 2/2 pages, 3 chunks, 876 characters
+examples/handbook.pdf: 2 pages of 2, 3 chunks, 876 characters
 ```
 
-The exit status is 0 on success and 1 if any input could not be read. The chunks of the other
+With `--pages`, a PDF that has only some of the selected pages yields those pages and a
+warning, so a batch is not stopped by one short file. The exit status is 0 on success and 1 if
+any input could not be read. The chunks of the other
 files are still written. With `-o`, the file is written atomically, so an interrupted run never
 leaves half a file behind.
 

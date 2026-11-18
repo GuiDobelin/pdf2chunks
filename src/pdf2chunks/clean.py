@@ -69,7 +69,7 @@ def dehyphenate(text: str) -> str:
 
 
 def _edge_key(line: str) -> str:
-    return re.sub(r"\d+", "#", line.casefold())
+    return re.sub(r"\d+", "#", line.strip().casefold())
 
 
 def strip_headers_footers(

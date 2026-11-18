@@ -1,8 +1,10 @@
 import argparse
 import contextlib
+import io
 import json
 import os
 import re
+import stat
 import sys
 import tempfile
 from collections.abc import Iterator
@@ -118,6 +120,10 @@ def _expand(paths: list[str]) -> Iterator[str]:
                 yield candidate
 
 
+def _plural(count: int, noun: str) -> str:
+    return f"{count} {noun}" if count == 1 else f"{count} {noun}s"
+
+
 def _write_lines(out: TextIO, chunks) -> None:
     for chunk in chunks:
         out.write(json.dumps(chunk.to_dict(), ensure_ascii=False) + "\n")
@@ -128,13 +134,24 @@ def _process(args: argparse.Namespace, out: TextIO, password: str | None) -> int
     for path in _expand(args.paths):
         name = "<stdin>" if path == "-" else path
         try:
+            if path == "-" and sys.stdin is None:
+                raise OSError("standard input is not available")
             src = sys.stdin.buffer.read() if path == "-" else path
-            document = read_pdf(src, password=password, pages=args.pages, source=name)
+            # in a batch, a short PDF yields the selected pages it has instead of failing
+            document = read_pdf(
+                src, password=password, pages=args.pages, source=name, ignore_missing_pages=True
+            )
         except (PdfError, ValueError, OSError) as exc:
             reason = exc.strerror if isinstance(exc, OSError) and exc.strerror else exc
             print(f"pdf2chunks: error: {name}: {reason}", file=sys.stderr)
             failures += 1
             continue
+        if args.pages and len(document.pages) < len(args.pages):
+            print(
+                f"pdf2chunks: warning: {name}: only {len(document.pages)} of the selected pages "
+                f"exist (the PDF has {document.page_count})",
+                file=sys.stderr,
+            )
         for warning in document.warnings:
             print(f"pdf2chunks: warning: {name}: {warning}", file=sys.stderr)
         chunks = chunk_document(
@@ -151,8 +168,8 @@ def _process(args: argparse.Namespace, out: TextIO, password: str | None) -> int
         if args.stats:
             chars = sum(len(c.text) for c in chunks)
             print(
-                f"{name}: {len(document.pages)}/{document.page_count} pages, "
-                f"{len(chunks)} chunks, {chars} characters",
+                f"{name}: {_plural(len(document.pages), 'page')} of {document.page_count}, "
+                f"{_plural(len(chunks), 'chunk')}, {_plural(chars, 'character')}",
                 file=sys.stderr,
             )
     return 1 if failures else 0
@@ -172,14 +189,26 @@ def main(argv: list[str] | None = None) -> int:
             parser.error(f"environment variable {args.password_env} is not set")
 
     if args.output == "-":
+        # Always UTF-8, whatever the console or locale encoding (e.g. cp1252 on Windows).
+        buffer = getattr(sys.stdout, "buffer", None)
+        out = (
+            io.TextIOWrapper(buffer, encoding="utf-8", newline="\n", line_buffering=False)
+            if buffer is not None
+            else sys.stdout
+        )
         try:
-            return _process(args, sys.stdout, password)
+            return _process(args, out, password)
         except BrokenPipeError:
             # The reader (e.g. `| head`) is gone, which is not an error. Point stdout at devnull
             # so the flush at interpreter exit does not complain again.
             with contextlib.suppress(OSError, ValueError, AttributeError):
                 os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
             return 0
+        finally:
+            if out is not sys.stdout:
+                with contextlib.suppress(OSError, ValueError):
+                    out.flush()
+                out.detach()  # leave sys.stdout usable
 
     # Write to a temporary file next to the target and rename it at the end, so a failed or
     # interrupted run never leaves a half-written JSONL behind.
@@ -192,7 +221,11 @@ def main(argv: list[str] | None = None) -> int:
     try:
         with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as out:
             status = _process(args, out, password)
-        os.chmod(tmp, 0o666 & ~_umask())
+        try:  # keep the permissions of a file being replaced
+            mode = stat.S_IMODE(os.stat(target).st_mode)
+        except FileNotFoundError:
+            mode = 0o666 & ~_umask()
+        os.chmod(tmp, mode)
         os.replace(tmp, target)
     except OSError as exc:
         print(f"pdf2chunks: error: {args.output}: {exc.strerror or exc}", file=sys.stderr)

@@ -119,3 +119,7 @@ def test_bare_years_at_page_edges_are_kept():
 def test_pages_made_only_of_similar_lines_are_not_emptied():
     pages = [f"Step {n}: add the flour.\n{n}" for n in range(1, 5)]
     assert strip_headers_footers(pages) == [f"Step {n}: add the flour." for n in range(1, 5)]
+
+
+def test_strip_headers_footers_ignores_surrounding_spaces():
+    assert strip_headers_footers(["Header \nA", " Header\nB"]) == ["A", "B"]

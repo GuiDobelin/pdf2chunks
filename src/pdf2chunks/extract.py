@@ -32,12 +32,15 @@ def read_pdf(
     password: str | None = None,
     pages: Iterable[int] | None = None,
     source: str | None = None,
+    ignore_missing_pages: bool = False,
 ) -> Document:
     """Extract the text of every page (or of the 1-based ``pages`` given) and the metadata.
 
     ``source`` names the document in the result; it defaults to the path, or ``""`` for bytes
-    and streams. A page whose text cannot be extracted is kept with empty text and reported in
-    ``Document.warnings`` instead of failing the whole document.
+    and streams. Selecting a page the PDF does not have raises ``ValueError``; with
+    ``ignore_missing_pages=True`` such pages are skipped instead, as long as at least one of
+    the selected pages exists. A page whose text cannot be extracted is kept with empty text
+    and reported in ``Document.warnings`` instead of failing the whole document.
     """
     if source is None:
         source = os.fspath(src) if isinstance(src, (str, os.PathLike)) else ""
@@ -63,9 +66,10 @@ def read_pdf(
         raise PdfError(f"cannot read PDF: {exc}") from exc
 
     numbers = list(range(1, total + 1)) if pages is None else sorted(set(pages))
-    for number in numbers:
-        if not 1 <= number <= total:
-            raise ValueError(f"page {number} does not exist (the PDF has {total} pages)")
+    missing = [n for n in numbers if not 1 <= n <= total]
+    if missing and (not ignore_missing_pages or len(missing) == len(numbers)):
+        raise ValueError(f"page {missing[0]} does not exist (the PDF has {total} pages)")
+    numbers = [n for n in numbers if 1 <= n <= total]
 
     extracted = []
     warnings = []

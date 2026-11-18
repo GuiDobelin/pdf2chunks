@@ -108,10 +108,15 @@ def chunk_pages(
     size = 0  # == _length(current), kept up to date instead of recomputed per unit
     for unit in _units(pages, max_chars):
         if current and size + len(unit.sep) + len(unit.text) > max_chars:
-            if len(current) > 1 and _is_heading(current[-1]):
+            heading = current[-1]
+            if (
+                len(current) > 1
+                and _is_heading(heading)
+                and len(heading.text) + len(unit.sep) + len(unit.text) <= max_chars
+            ):
                 # never end a chunk on a heading: move it to the chunk with its section
                 groups.append(current[:-1])
-                current = current[-1:]
+                current = [heading]
             else:
                 groups.append(current)
                 current = _tail(current, overlap)

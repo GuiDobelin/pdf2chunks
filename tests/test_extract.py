@@ -65,6 +65,10 @@ def test_read_pdf_selected_pages():
     assert doc.page_count == 3
     with pytest.raises(ValueError, match="page 4"):
         read_pdf(report(), pages=[4])
+    doc = read_pdf(report(), pages=[2, 4, 9], ignore_missing_pages=True)
+    assert [p.number for p in doc.pages] == [2]
+    with pytest.raises(ValueError, match="page 4"):
+        read_pdf(report(), pages=[4, 9], ignore_missing_pages=True)
 
 
 def test_read_pdf_without_metadata():
